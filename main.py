@@ -1,7 +1,8 @@
-import requests
 import os
-import json
-import re
+import time
+import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 
 TOKEN = os.environ.get('TELE_TOKEN')
 CHAT_ID = os.environ.get('TELE_CHAT_ID')
@@ -11,23 +12,26 @@ def send_telegram_message(text):
     api_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     requests.post(api_url, data={'chat_id': CHAT_ID, 'text': text})
 
-def test_json_stok():
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/114.0.0.0 Safari/537.36'
-    }
+def test_stok_selenium_json():
+    # Görünmez Chrome tarayıcımızı ayarlıyoruz
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    
+    driver = webdriver.Chrome(options=chrome_options)
     
     try:
-        response = requests.get(URL, headers=headers, timeout=10)
+        driver.get(URL)
+        time.sleep(3) # Sayfanın arka plan verilerinin yüklenmesi için kısa bir bekleme
         
-        # Sitenin kaynak kodundan PRODUCT_DETAIL_SIZE_DATA isimli JSON dizisini RegEx ile yakalıyoruz
-        match = re.search(r'PRODUCT_DETAIL_SIZE_DATA\s*=\s*(\[.*?\]);', response.text)
+        # İŞTE ALTIN VURUŞ: Selenium üzerinden sitenin kendi JS değişkenini doğrudan Python'a alıyoruz!
+        stok_listesi = driver.execute_script("return PRODUCT_DETAIL_SIZE_DATA;")
         
-        if match:
-            json_data = match.group(1)
-            stok_listesi = json.loads(json_data)
+        if stok_listesi:
+            mesaj = "🎯 Kusursuz Stok Raporu - Sadece Açık Pembe:\n\n"
             
-            mesaj = "🔍 Backend (JSON) Stok Raporu - Sadece Açık Pembe:\n\n"
-            
+            # JSON (Sözlük) yapısının içinde dönüp stok miktarlarını okuyoruz
             for beden_bilgisi in stok_listesi:
                 beden = beden_bilgisi.get("Size")
                 stok_miktari = beden_bilgisi.get("StockQuantity", 0)
@@ -40,10 +44,12 @@ def test_json_stok():
                         
             send_telegram_message(mesaj)
         else:
-            send_telegram_message("⚠️ JSON verisi bulunamadı. Defacto kod yapısını değiştirmiş olabilir.")
+            send_telegram_message("⚠️ Değişken bulunamadı veya sayfa yüklenemedi.")
             
     except Exception as e:
         send_telegram_message(f"Bağlantı Hatası: {e}")
+    finally:
+        driver.quit()
 
 if __name__ == "__main__":
-    test_json_stok()
+    test_stok_selenium_json()
