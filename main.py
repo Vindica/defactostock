@@ -61,12 +61,12 @@ def background_stock_check():
 
 @app.route("/")
 def home():
-    # cron-job.org istek attığı an siteye takılmadan HEMEN 200 OK cevabı verilir
-    # Selenium ise arka planda (Thread içinde) bağımsız çalışmaya başlar
+    # Arka planda thread'i başlatıyoruz
     thread = Thread(target=background_stock_check)
     thread.start()
     
-    return "Stok kontrolü arka planda başlatıldı!", 200
+    # cron-job.org'a şişkin metinler yerine sadece minicik bir OK kelimesi döndürüyoruz
+    return "OK", 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
