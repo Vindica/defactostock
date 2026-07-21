@@ -9,8 +9,11 @@ CHAT_ID = os.environ.get('TELE_CHAT_ID')
 URL = "https://www.defacto.com.tr/normal-bel-pamuk-astarli-krinkil-kumas-maxi-etek-3445374"
 
 def send_telegram_message(text):
-    api_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    requests.post(api_url, data={'chat_id': CHAT_ID, 'text': text})
+    try:
+        api_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+        requests.post(api_url, data={'chat_id': CHAT_ID, 'text': text}, timeout=10)
+    except Exception as e:
+        print(f"Telegram mesajı gönderilemedi: {e}")
 
 def check_stock_selenium():
     chrome_options = Options()
@@ -27,7 +30,7 @@ def check_stock_selenium():
         stok_listesi = driver.execute_script("return PRODUCT_DETAIL_SIZE_DATA;")
         
         if stok_listesi:
-            hedef_bedenler = ["34", "36", "38"]
+            hedef_bedenler = ["34", "36"]
             stoka_girenler = []
             
             for beden_bilgisi in stok_listesi:
@@ -43,10 +46,13 @@ def check_stock_selenium():
             else:
                 print("Kontrol edildi: 34 ve 36 bedenler hala tükenmiş.")
         else:
-            print("Uyarı: Veri okunamadı.")
+            # Veri okunamazsa bunu sana hata olarak bildirsin
+            send_telegram_message("⚠️ DİKKAT: Defacto stok verisi (PRODUCT_DETAIL_SIZE_DATA) okunamadı. Site yapısı değişmiş olabilir!")
             
     except Exception as e:
-        print(f"Hata oluştu: {e}")
+        # Kod içinde herhangi bir kritik hata patlarsa direkt haber ver
+        hata_mesaji = f"❌ KRİTİK HATA! Defacto stok botu hata nedeniyle çalışamadı:\n\n{str(e)}"
+        send_telegram_message(hata_mesaji)
     finally:
         driver.quit()
 
