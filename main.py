@@ -2,6 +2,7 @@ import os
 import time
 import requests
 from flask import Flask
+from threading import Thread
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
@@ -18,8 +19,8 @@ def send_telegram_message(text):
     except Exception as e:
         print(f"Telegram mesajı gönderilemedi: {e}")
 
-@app.route("/")
-def check_stock_selenium():
+def background_stock_check():
+    # Selenium işlemini arka planda (kilitlenmeden) yürüten fonksiyon
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
@@ -47,21 +48,26 @@ def check_stock_selenium():
             if stoka_girenler:
                 bulunanlar_str = ", ".join(stoka_girenler)
                 send_telegram_message(f"🚨 MÜJDE! Eteğin aradığın bedeni STOĞA GİRDİ!\n\nBulunanlar: {bulunanlar_str}\n\nHemen tıkla: {URL}")
-                return "Stok bulundu ve Telegram'a haber verildi!", 200
             else:
-                return "Kontrol edildi: 34 ve 36 bedenler hala tükenmiş.", 200
+                print("Kontrol edildi: 34 ve 36 bedenler hala tükenmiş.")
         else:
             send_telegram_message("⚠️ DİKKAT: Defacto stok verisi (PRODUCT_DETAIL_SIZE_DATA) okunamadı.")
-            return "Veri okunamadı.", 500
             
     except Exception as e:
         hata_mesaji = f"❌ KRİTİK HATA! Defacto stok botu hata aldı:\n\n{str(e)}"
         send_telegram_message(hata_mesaji)
-        return f"Hata: {e}", 500
     finally:
         driver.quit()
 
+@app.route("/")
+def home():
+    # cron-job.org istek attığı an siteye takılmadan HEMEN 200 OK cevabı verilir
+    # Selenium ise arka planda (Thread içinde) bağımsız çalışmaya başlar
+    thread = Thread(target=background_stock_check)
+    thread.start()
+    
+    return "Stok kontrolü arka planda başlatıldı!", 200
+
 if __name__ == "__main__":
-    # Render veya yerel testler için port ayarı
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
