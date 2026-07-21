@@ -1,7 +1,7 @@
 import os
-import time
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+import requests
+import json
+import re
 
 TOKEN = os.environ.get('TELE_TOKEN')
 CHAT_ID = os.environ.get('TELE_CHAT_ID')
@@ -9,28 +9,25 @@ URL = "https://www.defacto.com.tr/normal-bel-pamuk-astarli-krinkil-kumas-maxi-et
 
 def send_telegram_message(text):
     api_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    requests_post(api_url, data={'chat_id': CHAT_ID, 'text': text})
+    requests.post(api_url, data={'chat_id': CHAT_ID, 'text': text})
 
-# Not: requests kütüphanesi yerine selenium içi requests kullanıyorsak urllib da kullanılabilir, 
-# ancak requests zaten yukarIDA import edilebiliyor. Ufak bir düzeltme yapalım:
-import requests
-
-def check_stock_and_notify():
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    
-    driver = webdriver.Chrome(options=chrome_options)
+def check_stock_json():
+    # Defacto'nun bot korumasını atlatmak için güncel bir Tarayıcı (User-Agent) başlığı kullanıyoruz
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7'
+    }
     
     try:
-        driver.get(URL)
-        time.sleep(4) # Sayfanın yüklenmesi için bekleme
+        response = requests.get(URL, headers=headers, timeout=15)
         
-        # Sitenin hafızasından gerçek stok verisini çekiyoruz
-        stok_listesi = driver.execute_script("return PRODUCT_DETAIL_SIZE_DATA;")
+        # Sayfanın kaynak kodundan PRODUCT_DETAIL_SIZE_DATA dizisini yakalıyoruz
+        match = re.search(r'PRODUCT_DETAIL_SIZE_DATA\s*=\s*(\[.*?\]);', response.text)
         
-        if stok_listesi:
+        if match:
+            json_data = match.group(1)
+            stok_listesi = json.loads(json_data)
+            
             hedef_bedenler = ["34", "36"]
             stoka_girenler = []
             
@@ -38,25 +35,19 @@ def check_stock_and_notify():
                 beden = beden_bilgisi.get("Size")
                 stok_miktari = beden_bilgisi.get("StockQuantity", 0)
                 
-                # Eğer aradığımız 34 veya 36 bedenin stoğu 0'dan büyükse listeye ekle
                 if beden in hedef_bedenler and stok_miktari > 0:
                     stoka_girenler.append(f"{beden} Beden (Kalan: {stok_miktari})")
-            
-            # Eğer stokta olan aradığımız beden varsa ANINDA alarm gönder!
+                    
             if stoka_girenler:
                 bulunanlar_str = ", ".join(stoka_girenler)
-                mesaj = f"🚨 MÜJDE! Eteğin aradığın bedeni STOĞA GİRDİ!\n\nBulunanlar: {bulunanlar_str}\n\nHemen tıkla: {URL}"
-                send_telegram_message(mesaj)
+                send_telegram_message(f"🚨 MÜJDE! Eteğin aradığın bedeni STOĞA GİRDİ!\n\nBulunanlar: {bulunanlar_str}\n\nHemen tıkla: {URL}")
             else:
-                print("Kontrol edildi: Aranan 34 ve 36 bedenler hala tükenmiş durumda. Sessizce bekleniyor...")
-                
+                print("Kontrol edildi: 34 ve 36 bedenler hala tükenmiş.")
         else:
-            print("Uyarı: Stok verisi okunamadı.")
+            print("Uyarı: JSON verisi eşleşmedi, site yapısı kontrol edilmeli.")
             
     except Exception as e:
-        print(f"Hata oluştu: {e}")
-    finally:
-        driver.quit()
+        print(f"Bağlantı Hatası: {e}")
 
 if __name__ == "__main__":
-    check_stock_and_notify()
+    check_stock_json()
