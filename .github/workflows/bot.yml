@@ -1,21 +1,21 @@
 name: Defacto Stok Botu
 on:
   schedule:
-    - cron: '*/5 * * * *' # Her 5 dakikada bir otomatik çalışır
-  workflow_dispatch: # İstersen elle de tetikleyebilmeni sağlar
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Depoyu Çek
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Python Kurulumu
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
       - name: Kütüphaneleri Yükle
-        run: pip install requests selenium
+        run: pip install requests
       - name: Botu Çalıştır
         env:
           TELE_TOKEN: ${{ secrets.TELE_TOKEN }}
