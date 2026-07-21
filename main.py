@@ -1,8 +1,11 @@
 import os
 import time
 import requests
+from flask import Flask
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+
+app = Flask(__name__)
 
 TOKEN = os.environ.get('TELE_TOKEN')
 CHAT_ID = os.environ.get('TELE_CHAT_ID')
@@ -15,6 +18,7 @@ def send_telegram_message(text):
     except Exception as e:
         print(f"Telegram mesajı gönderilemedi: {e}")
 
+@app.route("/")
 def check_stock_selenium():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
@@ -43,18 +47,21 @@ def check_stock_selenium():
             if stoka_girenler:
                 bulunanlar_str = ", ".join(stoka_girenler)
                 send_telegram_message(f"🚨 MÜJDE! Eteğin aradığın bedeni STOĞA GİRDİ!\n\nBulunanlar: {bulunanlar_str}\n\nHemen tıkla: {URL}")
+                return "Stok bulundu ve Telegram'a haber verildi!", 200
             else:
-                print("Kontrol edildi: 34 ve 36 bedenler hala tükenmiş.")
+                return "Kontrol edildi: 34 ve 36 bedenler hala tükenmiş.", 200
         else:
-            # Veri okunamazsa bunu sana hata olarak bildirsin
-            send_telegram_message("⚠️ DİKKAT: Defacto stok verisi (PRODUCT_DETAIL_SIZE_DATA) okunamadı. Site yapısı değişmiş olabilir!")
+            send_telegram_message("⚠️ DİKKAT: Defacto stok verisi (PRODUCT_DETAIL_SIZE_DATA) okunamadı.")
+            return "Veri okunamadı.", 500
             
     except Exception as e:
-        # Kod içinde herhangi bir kritik hata patlarsa direkt haber ver
-        hata_mesaji = f"❌ KRİTİK HATA! Defacto stok botu hata nedeniyle çalışamadı:\n\n{str(e)}"
+        hata_mesaji = f"❌ KRİTİK HATA! Defacto stok botu hata aldı:\n\n{str(e)}"
         send_telegram_message(hata_mesaji)
+        return f"Hata: {e}", 500
     finally:
         driver.quit()
 
 if __name__ == "__main__":
-    check_stock_selenium()
+    # Render veya yerel testler için port ayarı
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
