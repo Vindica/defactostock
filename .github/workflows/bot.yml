@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: '3.x'
       - name: Kütüphaneleri Yükle
-        run: pip install requests
+        run: pip install requests selenium
       - name: Botu Çalıştır
         env:
           TELE_TOKEN: ${{ secrets.TELE_TOKEN }}
