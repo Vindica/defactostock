@@ -35,7 +35,7 @@ def background_stock_check():
         stok_listesi = driver.execute_script("return PRODUCT_DETAIL_SIZE_DATA;")
         
         if stok_listesi:
-            hedef_bedenler = ["34", "36"]
+            hedef_bedenler = ["34", "36","38"]
             stoka_girenler = []
             
             for beden_bilgisi in stok_listesi:
