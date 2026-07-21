@@ -30,3 +30,5 @@ def check_stock():
             
 if __name__ == "__main__":
     check_stock()
+
+send_telegram_message("Bot başarıyla kuruldu ve şu an nöbette! 🚀")
