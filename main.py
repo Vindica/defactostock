@@ -1,7 +1,8 @@
 import os
+import time
 import requests
-import json
-import re
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 
 TOKEN = os.environ.get('TELE_TOKEN')
 CHAT_ID = os.environ.get('TELE_CHAT_ID')
@@ -11,23 +12,21 @@ def send_telegram_message(text):
     api_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     requests.post(api_url, data={'chat_id': CHAT_ID, 'text': text})
 
-def check_stock_json():
-    # Defacto'nun bot korumasını atlatmak için güncel bir Tarayıcı (User-Agent) başlığı kullanıyoruz
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7'
-    }
+def check_stock_selenium():
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    
+    driver = webdriver.Chrome(options=chrome_options)
     
     try:
-        response = requests.get(URL, headers=headers, timeout=15)
+        driver.get(URL)
+        time.sleep(4)
         
-        # Sayfanın kaynak kodundan PRODUCT_DETAIL_SIZE_DATA dizisini yakalıyoruz
-        match = re.search(r'PRODUCT_DETAIL_SIZE_DATA\s*=\s*(\[.*?\]);', response.text)
+        stok_listesi = driver.execute_script("return PRODUCT_DETAIL_SIZE_DATA;")
         
-        if match:
-            json_data = match.group(1)
-            stok_listesi = json.loads(json_data)
-            
+        if stok_listesi:
             hedef_bedenler = ["34", "36"]
             stoka_girenler = []
             
@@ -37,17 +36,19 @@ def check_stock_json():
                 
                 if beden in hedef_bedenler and stok_miktari > 0:
                     stoka_girenler.append(f"{beden} Beden (Kalan: {stok_miktari})")
-                    
+            
             if stoka_girenler:
                 bulunanlar_str = ", ".join(stoka_girenler)
                 send_telegram_message(f"🚨 MÜJDE! Eteğin aradığın bedeni STOĞA GİRDİ!\n\nBulunanlar: {bulunanlar_str}\n\nHemen tıkla: {URL}")
             else:
                 print("Kontrol edildi: 34 ve 36 bedenler hala tükenmiş.")
         else:
-            print("Uyarı: JSON verisi eşleşmedi, site yapısı kontrol edilmeli.")
+            print("Uyarı: Veri okunamadı.")
             
     except Exception as e:
-        print(f"Bağlantı Hatası: {e}")
+        print(f"Hata oluştu: {e}")
+    finally:
+        driver.quit()
 
 if __name__ == "__main__":
-    check_stock_json()
+    check_stock_selenium()
