@@ -1,9 +1,7 @@
-import os
-import time
 import requests
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
+import os
+import json
+import re
 
 TOKEN = os.environ.get('TELE_TOKEN')
 CHAT_ID = os.environ.get('TELE_CHAT_ID')
@@ -13,45 +11,39 @@ def send_telegram_message(text):
     api_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     requests.post(api_url, data={'chat_id': CHAT_ID, 'text': text})
 
-def test_selenium_bot():
-    # Görünmez bir Chrome tarayıcısı yapılandırıyoruz
-    chrome_options = Options()
-    chrome_options.add_argument("--headless") # Tarayıcı arayüzü olmadan çalış
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    
-    driver = webdriver.Chrome(options=chrome_options)
+def test_json_stok():
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/114.0.0.0 Safari/537.36'
+    }
     
     try:
-        driver.get(URL)
-        # JavaScript'in çalışıp API'den beden listesini getirmesi için 5 saniye bekliyoruz
-        time.sleep(5) 
+        response = requests.get(URL, headers=headers, timeout=10)
         
-        # Sayfadaki tüm görünür metinleri çekiyoruz (Distill eklentisinin okuduğu formatta)
-        sayfa_metni = driver.find_element(By.TAG_NAME, "body").text
+        # Sitenin kaynak kodundan PRODUCT_DETAIL_SIZE_DATA isimli JSON dizisini RegEx ile yakalıyoruz
+        match = re.search(r'PRODUCT_DETAIL_SIZE_DATA\s*=\s*(\[.*?\]);', response.text)
         
-        mesaj = "🤖 Selenium Tarayıcısından Çekilen Veriler:\n\n"
-        
-        # Distill ekran görüntülerinde gördüğümüz mantığı uyguluyoruz: 
-        # Bedenin yanında "Benzerini Gör" yazıyorsa tükenmiştir.
-        bedenler = ["34", "36", "38", "40", "42"]
-        sayfa_metni_tek_satir = sayfa_metni.replace('\n', ' ')
-        
-        for beden in bedenler:
-            # "34 Benzerini Gör" yan yana veya alt alta gelmiş mi kontrol ediyoruz
-            if f"{beden}\nBenzerini Gör" in sayfa_metni or f"{beden} Benzerini Gör" in sayfa_metni_tek_satir:
-                mesaj += f"❌ {beden} Beden: Tükendi\n"
-            elif str(beden) in sayfa_metni:
-                mesaj += f"✅ {beden} Beden: STOKTA VAR!\n"
-            else:
-                mesaj += f"⚠️ {beden} Beden: Ekranda hiç bulunamadı.\n"
+        if match:
+            json_data = match.group(1)
+            stok_listesi = json.loads(json_data)
+            
+            mesaj = "🔍 Backend (JSON) Stok Raporu - Sadece Açık Pembe:\n\n"
+            
+            for beden_bilgisi in stok_listesi:
+                beden = beden_bilgisi.get("Size")
+                stok_miktari = beden_bilgisi.get("StockQuantity", 0)
                 
-        send_telegram_message(mesaj)
-        
+                if beden in ["34", "36", "38", "40", "42"]:
+                    if stok_miktari > 0:
+                        mesaj += f"✅ {beden} Beden: STOKTA VAR! (Kalan: {stok_miktari})\n"
+                    else:
+                        mesaj += f"❌ {beden} Beden: Tükendi\n"
+                        
+            send_telegram_message(mesaj)
+        else:
+            send_telegram_message("⚠️ JSON verisi bulunamadı. Defacto kod yapısını değiştirmiş olabilir.")
+            
     except Exception as e:
-        send_telegram_message(f"Hata oluştu: {e}")
-    finally:
-        driver.quit() # Sistemi yormamak için Chrome'u kapatıyoruz
+        send_telegram_message(f"Bağlantı Hatası: {e}")
 
 if __name__ == "__main__":
-    test_selenium_bot()
+    test_json_stok()
