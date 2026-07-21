@@ -1,6 +1,5 @@
 import os
 import time
-import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
@@ -10,10 +9,13 @@ URL = "https://www.defacto.com.tr/normal-bel-pamuk-astarli-krinkil-kumas-maxi-et
 
 def send_telegram_message(text):
     api_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    requests.post(api_url, data={'chat_id': CHAT_ID, 'text': text})
+    requests_post(api_url, data={'chat_id': CHAT_ID, 'text': text})
 
-def test_stok_selenium_json():
-    # Görünmez Chrome tarayıcımızı ayarlıyoruz
+# Not: requests kütüphanesi yerine selenium içi requests kullanıyorsak urllib da kullanılabilir, 
+# ancak requests zaten yukarIDA import edilebiliyor. Ufak bir düzeltme yapalım:
+import requests
+
+def check_stock_and_notify():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
@@ -23,33 +25,38 @@ def test_stok_selenium_json():
     
     try:
         driver.get(URL)
-        time.sleep(3) # Sayfanın arka plan verilerinin yüklenmesi için kısa bir bekleme
+        time.sleep(4) # Sayfanın yüklenmesi için bekleme
         
-        # İŞTE ALTIN VURUŞ: Selenium üzerinden sitenin kendi JS değişkenini doğrudan Python'a alıyoruz!
+        # Sitenin hafızasından gerçek stok verisini çekiyoruz
         stok_listesi = driver.execute_script("return PRODUCT_DETAIL_SIZE_DATA;")
         
         if stok_listesi:
-            mesaj = "🎯 Kusursuz Stok Raporu - Sadece Açık Pembe:\n\n"
+            hedef_bedenler = ["34", "36"]
+            stoka_girenler = []
             
-            # JSON (Sözlük) yapısının içinde dönüp stok miktarlarını okuyoruz
             for beden_bilgisi in stok_listesi:
                 beden = beden_bilgisi.get("Size")
                 stok_miktari = beden_bilgisi.get("StockQuantity", 0)
                 
-                if beden in ["34", "36", "38", "40", "42"]:
-                    if stok_miktari > 0:
-                        mesaj += f"✅ {beden} Beden: STOKTA VAR! (Kalan: {stok_miktari})\n"
-                    else:
-                        mesaj += f"❌ {beden} Beden: Tükendi\n"
-                        
-            send_telegram_message(mesaj)
+                # Eğer aradığımız 34 veya 36 bedenin stoğu 0'dan büyükse listeye ekle
+                if beden in hedef_bedenler and stok_miktari > 0:
+                    stoka_girenler.append(f"{beden} Beden (Kalan: {stok_miktari})")
+            
+            # Eğer stokta olan aradığımız beden varsa ANINDA alarm gönder!
+            if stoka_girenler:
+                bulunanlar_str = ", ".join(stoka_girenler)
+                mesaj = f"🚨 MÜJDE! Eteğin aradığın bedeni STOĞA GİRDİ!\n\nBulunanlar: {bulunanlar_str}\n\nHemen tıkla: {URL}"
+                send_telegram_message(mesaj)
+            else:
+                print("Kontrol edildi: Aranan 34 ve 36 bedenler hala tükenmiş durumda. Sessizce bekleniyor...")
+                
         else:
-            send_telegram_message("⚠️ Değişken bulunamadı veya sayfa yüklenemedi.")
+            print("Uyarı: Stok verisi okunamadı.")
             
     except Exception as e:
-        send_telegram_message(f"Bağlantı Hatası: {e}")
+        print(f"Hata oluştu: {e}")
     finally:
         driver.quit()
 
 if __name__ == "__main__":
-    test_stok_selenium_json()
+    check_stock_and_notify()
